@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Important Tasks</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+    color: #111;
+  }
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 20px;
+    text-align: center;
+  }
+  .date-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .date-nav button {
+    font-size: 16px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .date-nav input[type="date"] {
+    flex: 1;
+    font-size: 15px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+  }
+  .add-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .add-row input[type="text"] {
+    flex: 1;
+    font-size: 15px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+  }
+  .add-row button {
+    font-size: 15px;
+    padding: 10px 16px;
+    border: 1px solid #111;
+    background: #111;
+    color: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  ul#task-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  li.task {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+  }
+  li.task input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  li.task span.text {
+    flex: 1;
+    font-size: 15px;
+    word-break: break-word;
+  }
+  li.task.done span.text {
+    text-decoration: line-through;
+    color: #999;
+  }
+  li.task button.delete {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: #999;
+    padding: 4px 6px;
+  }
+  li.task button.delete:hover {
+    color: #c00;
+  }
+  #empty-msg, #status-msg {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    margin-top: 24px;
+  }
+  #status-msg.error {
+    color: #c00;
+  }
+
+  /* confirm delete popup */
+  .confirm-box {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 90vw;
+    z-index: 10;
+  }
+  .confirm-box span {
+    font-size: 14px;
+  }
+  .confirm-box button {
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+  .confirm-box button.confirm-yes {
+    background: #c00;
+    color: #fff;
+    border-color: #c00;
+  }
+</style>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="theme-color" content="#ffffff">
+</head>
+<body>
+
+<h1>Super Important Tasks</h1>
+
+<div class="date-nav">
+  <button id="prev-day" aria-label="Previous day">&#8592;</button>
+  <input type="date" id="date-picker">
+  <button id="next-day" aria-label="Next day">&#8594;</button>
+</div>
+
+<div class="add-row">
+  <input type="text" id="new-task" placeholder="Add a super important task..." maxlength="200">
+  <button id="add-btn">Add</button>
+</div>
+
+<ul id="task-list"></ul>
+<div id="empty-msg" style="display:none;">Nothing here yet for this date.</div>
+<div id="status-msg"></div>
+
+<script src="./config.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2.110.5/dist/umd/supabase.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  const TABLE_NAME = "super_important_tasks_kh_7f3a9c";
+  const INSTALL_DISMISSED_KEY = "sit_install_prompt_dismissed_v1";
+
+  const statusEl = document.getElementById("status-msg");
+  const listEl = document.getElementById("task-list");
+  const emptyEl = document.getElementById("empty-msg");
+  const datePicker = document.getElementById("date-picker");
+  const newTaskInput = document.getElementById("new-task");
+  const addButton = document.getElementById("add-btn");
+  const prevButton = document.getElementById("prev-day");
+  const nextButton = document.getElementById("next-day");
+
+  let db = null;
+  let currentUserId = null;
+  let currentDate = toDateStr(new Date());
+  let latestLoadId = 0;
+  let isAdding = false;
+  let deferredInstallPrompt = null;
+  let installOfferHandled = false;
+
+  datePicker.value = currentDate;
+
+  function setStatus(message, isError) {
+    statusEl.textContent = message || "";
+    statusEl.classList.toggle("error", Boolean(isError));
+  }
+
+  function setControlsDisabled(disabled) {
+    addButton.disabled = disabled;
+    newTaskInput.disabled = disabled;
+    datePicker.disabled = disabled;
+    prevButton.disabled = disabled;
+    nextButton.disabled = disabled;
+  }
+
+  function toDateStr(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function fromDateStr(value) {
+    const parts = String(value).split("-").map(Number);
+    if (
+      parts.length !== 3 ||
+      !Number.isInteger(parts[0]) ||
+      !Number.isInteger(parts[1]) ||
+      !Number.isInteger(parts[2])
+    ) {
+      return null;
+    }
+
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (
+      date.getFullYear() !== parts[0] ||
+      date.getMonth() !== parts[1] - 1 ||
+      date.getDate() !== parts[2]
+    ) {
+      return null;
+    }
+    return date;
+  }
+
+  function getConfig() {
+    const config = window.APP_CONFIG;
+    if (!config || typeof config !== "object") {
+      throw new Error("Missing config.js. Deploy through the included GitHub Pages workflow.");
+    }
+
+    const url = String(config.SUPABASE_URL || "").trim();
+    const key = String(config.SUPABASE_PUBLISHABLE_KEY || "").trim();
+
+    if (!/^https:\/\/.+\.supabase\.co\/?$/.test(url)) {
+      throw new Error("SUPABASE_URL is missing or invalid.");
+    }
+    if (!key || key.includes("YOUR_")) {
+      throw new Error("SUPABASE_PUBLISHABLE_KEY is missing.");
+    }
+
+    return { url, key };
+  }
+
+  async function ensureAnonymousSession() {
+    const { data: sessionData, error: sessionError } = await db.auth.getSession();
+    if (sessionError) throw sessionError;
+
+    if (sessionData.session && sessionData.session.user) {
+      currentUserId = sessionData.session.user.id;
+      return;
+    }
+
+    const { data, error } = await db.auth.signInAnonymously();
+    if (error) {
+      throw new Error(
+        error.message +
+        " Enable Anonymous Sign-Ins in Supabase: Authentication → Sign In / Providers → Anonymous."
+      );
+    }
+
+    if (!data.user) {
+      throw new Error("Supabase did not return an authenticated anonymous user.");
+    }
+    currentUserId = data.user.id;
+  }
+
+  function renderTasks(tasks) {
+    listEl.innerHTML = "";
+
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      emptyEl.style.display = "block";
+      return;
+    }
+
+    emptyEl.style.display = "none";
+
+    tasks.forEach((task) => {
+      const li = document.createElement("li");
+      li.className = "task" + (task.completed ? " done" : "");
+      li.dataset.id = task.id;
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = Boolean(task.completed);
+      checkbox.setAttribute("aria-label", `Mark ${task.task_text} complete`);
+      checkbox.addEventListener("change", async () => {
+        checkbox.disabled = true;
+        const requestedValue = checkbox.checked;
+        li.classList.toggle("done", requestedValue);
+
+        const ok = await toggleTask(task.id, requestedValue);
+        if (!ok) {
+          checkbox.checked = !requestedValue;
+          li.classList.toggle("done", !requestedValue);
+        }
+        checkbox.disabled = false;
+      });
+
+      const span = document.createElement("span");
+      span.className = "text";
+      span.textContent = task.task_text;
+
+      const deleteButton = document.createElement("button");
+      deleteButton.className = "delete";
+      deleteButton.innerHTML = "&#128465;";
+      deleteButton.type = "button";
+      deleteButton.setAttribute("aria-label", `Delete ${task.task_text}`);
+      deleteButton.addEventListener("click", () => {
+        confirmDelete(task.id, task.task_text);
+      });
+
+      li.appendChild(checkbox);
+      li.appendChild(span);
+      li.appendChild(deleteButton);
+      listEl.appendChild(li);
+    });
+  }
+
+  async function loadTasks() {
+    if (!db || !currentUserId) return;
+
+    const loadId = ++latestLoadId;
+    const requestedDate = currentDate;
+    setStatus("Loading...");
+
+    const { data, error } = await db
+      .from(TABLE_NAME)
+      .select("id, task_text, completed, task_date, created_at")
+      .eq("user_id", currentUserId)
+      .eq("task_date", requestedDate)
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+
+    if (loadId !== latestLoadId || requestedDate !== currentDate) return;
+
+    if (error) {
+      renderTasks([]);
+      setStatus("Couldn't load tasks: " + error.message, true);
+      return;
+    }
+
+    renderTasks(data || []);
+    setStatus("");
+  }
+
+  async function addTask() {
+    if (!db || !currentUserId || isAdding) return;
+
+    const text = newTaskInput.value.trim();
+    if (!text) {
+      newTaskInput.focus();
+      return;
+    }
+
+    isAdding = true;
+    addButton.disabled = true;
+    newTaskInput.disabled = true;
+    const taskDate = currentDate;
+    setStatus("Saving...");
+
+    const { error } = await db.from(TABLE_NAME).insert({
+      user_id: currentUserId,
+      task_text: text,
+      task_date: taskDate,
+      completed: false
+    });
+
+    isAdding = false;
+    addButton.disabled = false;
+    newTaskInput.disabled = false;
+
+    if (error) {
+      setStatus("Couldn't add task: " + error.message, true);
+      newTaskInput.focus();
+      return;
+    }
+
+    newTaskInput.value = "";
+    if (currentDate === taskDate) {
+      await loadTasks();
+      newTaskInput.focus();
+    }
+  }
+
+  async function toggleTask(id, completed) {
+    setStatus("Saving...");
+
+    const { data, error } = await db
+      .from(TABLE_NAME)
+      .update({
+        completed,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", id)
+      .eq("user_id", currentUserId)
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) {
+      setStatus(
+        "Couldn't update task: " + (error ? error.message : "Task was not found."),
+        true
+      );
+      return false;
+    }
+
+    setStatus("");
+    return true;
+  }
+
+  async function deleteTask(id) {
+    setStatus("Deleting...");
+
+    const { data, error } = await db
+      .from(TABLE_NAME)
+      .delete()
+      .eq("id", id)
+      .eq("user_id", currentUserId)
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) {
+      setStatus(
+        "Couldn't delete task: " + (error ? error.message : "Task was not found."),
+        true
+      );
+      return;
+    }
+
+    await loadTasks();
+  }
+
+  function confirmDelete(id, text) {
+    const existing = document.querySelector(".confirm-box");
+    if (existing) existing.remove();
+
+    const box = document.createElement("div");
+    box.className = "confirm-box";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.setAttribute("aria-label", "Confirm task deletion");
+
+    const label = document.createElement("span");
+    const shortText = text.length > 30 ? text.slice(0, 30) + "..." : text;
+    label.textContent = `Delete "${shortText}"?`;
+
+    const yesButton = document.createElement("button");
+    yesButton.textContent = "Delete";
+    yesButton.type = "button";
+    yesButton.className = "confirm-yes";
+
+    const noButton = document.createElement("button");
+    noButton.textContent = "Cancel";
+    noButton.type = "button";
+
+    function closeBox() {
+      document.removeEventListener("keydown", onKeyDown);
+      box.remove();
+    }
+
+    function onKeyDown(event) {
+      if (event.key === "Escape") closeBox();
+    }
+
+    yesButton.addEventListener("click", async () => {
+      yesButton.disabled = true;
+      noButton.disabled = true;
+      await deleteTask(id);
+      closeBox();
+    });
+
+    noButton.addEventListener("click", closeBox);
+    document.addEventListener("keydown", onKeyDown);
+
+    box.appendChild(label);
+    box.appendChild(yesButton);
+    box.appendChild(noButton);
+    document.body.appendChild(box);
+    noButton.focus();
+  }
+
+  async function changeDate(nextDate) {
+    if (!nextDate || nextDate === currentDate) return;
+    currentDate = nextDate;
+    datePicker.value = currentDate;
+    await loadTasks();
+  }
+
+  function isStandalone() {
+    return (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function isMobileDevice() {
+    return (
+      window.matchMedia("(max-width: 768px)").matches ||
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    );
+  }
+
+  async function offerInstallOnMobile() {
+    if (
+      installOfferHandled ||
+      !isMobileDevice() ||
+      isStandalone() ||
+      localStorage.getItem(INSTALL_DISMISSED_KEY) === "1"
+    ) {
+      installOfferHandled = true;
+      return true;
+    }
+
+    if (deferredInstallPrompt) {
+      installOfferHandled = true;
+      const accepted = window.confirm(
+        "Would you like to install Super Important Tasks on this phone?"
+      );
+      if (!accepted) {
+        localStorage.setItem(INSTALL_DISMISSED_KEY, "1");
+        return true;
+      }
+
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      return true;
+    }
+
+    const isIOS =
+      /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (isIOS) {
+      installOfferHandled = true;
+      const showInstructions = window.confirm(
+        "Install Super Important Tasks? Tap OK, then use Share → Add to Home Screen."
+      );
+      if (!showInstructions) {
+        localStorage.setItem(INSTALL_DISMISSED_KEY, "1");
+      }
+      return true;
+    }
+
+    // Chromium may not have emitted beforeinstallprompt yet.
+    return false;
+  }
+
+  function registerInstallSupport() {
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+    });
+
+    window.addEventListener("appinstalled", () => {
+      deferredInstallPrompt = null;
+      installOfferHandled = true;
+      localStorage.removeItem(INSTALL_DISMISSED_KEY);
+    });
+
+    document.addEventListener("pointerup", async function handleInstallGesture() {
+      const handled = await offerInstallOnMobile();
+      if (handled) {
+        document.removeEventListener("pointerup", handleInstallGesture);
+      }
+    });
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch(() => {
+          // Installation is optional; task operations should continue.
+        });
+      });
+    }
+  }
+
+  function wireEvents() {
+    addButton.addEventListener("click", addTask);
+
+    newTaskInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") addTask();
+    });
+
+    datePicker.addEventListener("change", () => {
+      const parsed = fromDateStr(datePicker.value);
+      if (!parsed) {
+        datePicker.value = currentDate;
+        return;
+      }
+      changeDate(toDateStr(parsed));
+    });
+
+    prevButton.addEventListener("click", () => {
+      const date = fromDateStr(currentDate);
+      date.setDate(date.getDate() - 1);
+      changeDate(toDateStr(date));
+    });
+
+    nextButton.addEventListener("click", () => {
+      const date = fromDateStr(currentDate);
+      date.setDate(date.getDate() + 1);
+      changeDate(toDateStr(date));
+    });
+  }
+
+  async function init() {
+    setControlsDisabled(true);
+    registerInstallSupport();
+    wireEvents();
+
+    try {
+      const config = getConfig();
+      if (!window.supabase || typeof window.supabase.createClient !== "function") {
+        throw new Error("The Supabase client library did not load.");
+      }
+
+      db = window.supabase.createClient(config.url, config.key, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false
+        }
+      });
+
+      await ensureAnonymousSession();
+      setControlsDisabled(false);
+      await loadTasks();
+      newTaskInput.focus();
+    } catch (error) {
+      renderTasks([]);
+      setStatus(error instanceof Error ? error.message : String(error), true);
+    }
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
