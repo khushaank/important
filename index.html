@@ -42,10 +42,11 @@
 
     .progress-card {
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 14px;
-      margin-bottom: 18px;
+      gap: 10px;
+      margin: 4px 0 22px;
       color: #555;
       font-size: 13px;
     }
@@ -55,8 +56,8 @@
       position: relative;
       display: grid;
       place-items: center;
-      width: 62px;
-      height: 62px;
+      width: 132px;
+      height: 132px;
       flex: 0 0 auto;
       border: 1px solid #c00;
       border-radius: 50%;
@@ -66,8 +67,8 @@
     #progress-circle::before {
       content: "";
       position: absolute;
-      width: 46px;
-      height: 46px;
+      width: 104px;
+      height: 104px;
       border-radius: 50%;
       background: #fff;
     }
@@ -76,8 +77,18 @@
       position: relative;
       z-index: 1;
       color: #c00;
-      font-size: 12px;
+      font-size: 23px;
       font-weight: 600;
+    }
+
+    #progress-label {
+      position: relative;
+      z-index: 1;
+      margin-top: -2px;
+      color: #666;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .08em;
     }
 
     button:focus-visible,
@@ -326,7 +337,7 @@
     <div class="pin-card">
       <img src="./icons/icon-192.png" alt="">
       <h2 id="pin-title">Super Important Tasks</h2>
-      <p>Enter PIN</p>
+      <p>Enter your 4-digit PIN</p>
       <div class="pin-boxes" aria-label="Four digit PIN">
         <input inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="PIN digit 1">
         <input inputmode="numeric" maxlength="1" aria-label="PIN digit 2">
@@ -358,6 +369,7 @@
       <div id="progress-circle" role="progressbar" aria-label="Task completion progress" aria-valuemin="0"
         aria-valuemax="100" aria-valuenow="0">
         <span id="progress-count">0/0</span>
+        <span id="progress-label">TASKS</span>
       </div>
       <span id="progress-text">0 of 0 tasks completed</span>
     </div>
@@ -413,22 +425,44 @@
         nextButton.disabled = disabled;
       }
 
+      function setPinDisabled(disabled) {
+        pinInputs.forEach((input) => { input.disabled = disabled; });
+      }
+
       async function tryPin() {
         const pin = pinInputs.map((input) => input.value).join("");
-        if (!/^\d{4}$/.test(pin)) return;
+        if (!db || !/^\d{4}$/.test(pin)) return;
 
-        if (pin !== "5514") {
-          pinError.textContent = "That PIN isn't right.";
+        setPinDisabled(true);
+        pinError.textContent = "Checking...";
+
+        try {
+          const { data: loginData, error: loginError } = await db.functions.invoke("pin-login", {
+            body: { pin }
+          });
+          if (loginError || !loginData || !loginData.token_hash) throw loginError || new Error("Login failed");
+
+          const { data: authData, error: authError } = await db.auth.verifyOtp({
+            token_hash: loginData.token_hash,
+            type: "email"
+          });
+          if (authError || !authData.user) throw authError || new Error("Login failed");
+
+          currentUserId = authData.user.id;
+          document.body.classList.add("unlocked");
+          setControlsDisabled(false);
+          await loadTasks();
+          newTaskInput.focus();
+        } catch (_) {
+          pinError.textContent = "That PIN isn't right, or login is temporarily unavailable.";
           pinInputs.forEach((input) => { input.value = ""; });
+          setPinDisabled(false);
           pinInputs[0].focus();
-          return;
         }
-
-        document.body.classList.add("unlocked");
-        await init();
       }
 
       function initPinLock() {
+        setPinDisabled(false);
         pinInputs.forEach((input, index) => {
           input.addEventListener("input", () => {
             input.value = input.value.replace(/\D/g, "").slice(-1);
@@ -532,29 +566,6 @@
           url: parsedUrl.href.replace(/\/+$/, ""),
           key
         };
-      }
-
-      async function ensureAnonymousSession() {
-        const { data: sessionData, error: sessionError } = await db.auth.getSession();
-        if (sessionError) throw sessionError;
-
-        if (sessionData.session && sessionData.session.user) {
-          currentUserId = sessionData.session.user.id;
-          return;
-        }
-
-        const { data, error } = await db.auth.signInAnonymously();
-        if (error) {
-          throw new Error(
-            error.message +
-            " Enable Anonymous Sign-Ins in Supabase: Authentication → Sign In / Providers → Anonymous."
-          );
-        }
-
-        if (!data.user) {
-          throw new Error("Supabase did not return an authenticated anonymous user.");
-        }
-        currentUserId = data.user.id;
       }
 
       function renderTasks(tasks, chartTasks) {
@@ -945,6 +956,7 @@
 
       async function init() {
         setControlsDisabled(true);
+        setPinDisabled(true);
         registerInstallSupport();
         wireEvents();
 
@@ -956,19 +968,15 @@
 
           db = window.supabase.createClient(config.url, config.key, {
             auth: {
-              persistSession: true,
+              persistSession: false,
               autoRefreshToken: true,
               detectSessionInUrl: false
             }
           });
 
-          await ensureAnonymousSession();
-          setControlsDisabled(false);
-          await loadTasks();
-          newTaskInput.focus();
+          initPinLock();
         } catch (error) {
-          renderTasks([]);
-          setStatus(error instanceof Error ? error.message : String(error), true);
+          pinError.textContent = error instanceof Error ? error.message : String(error);
         }
       }
 
@@ -976,7 +984,7 @@
         console.assert(JSON.stringify(calculateProgress([{ completed: true }, { completed: false }])) === JSON.stringify({ completedCount: 1, taskCount: 2 }));
         console.assert(pinInputs.length === 4);
       }
-      initPinLock();
+      init();
     })();
   </script>
 
