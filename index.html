@@ -159,6 +159,33 @@
       font: 600 22px/1 inherit;
     }
 
+    .keep-signed-in {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      width: 220px;
+      margin: 16px auto 0;
+      color: #333;
+      text-align: left;
+      font-size: 13px;
+      line-height: 1.35;
+      cursor: pointer;
+    }
+
+    .keep-signed-in input {
+      width: 17px;
+      height: 17px;
+      margin: 0;
+      accent-color: #111;
+    }
+
+    .keep-signed-in small {
+      display: block;
+      margin-top: 2px;
+      color: #777;
+      font-size: 11px;
+    }
+
     .pin-error {
       min-height: 20px;
       margin-top: 12px;
@@ -344,6 +371,10 @@
         <input inputmode="numeric" maxlength="1" aria-label="PIN digit 3">
         <input inputmode="numeric" maxlength="1" aria-label="PIN digit 4">
       </div>
+      <label class="keep-signed-in">
+        <input type="checkbox" id="keep-signed-in">
+        <span>Yes, keep this device signed in<small>Leave this off for a one-time sign-in.</small></span>
+      </label>
       <div id="pin-error" class="pin-error" role="alert"></div>
     </div>
   </section>
@@ -387,6 +418,7 @@
 
       const TABLE_NAME = "super_important_tasks_kh_7f3a9c";
       const INSTALL_DISMISSED_KEY = "sit_install_prompt_dismissed_v1";
+      const KEEP_SIGNED_IN_KEY = "sit_keep_signed_in_v1";
 
       const statusEl = document.getElementById("status-msg");
       const listEl = document.getElementById("task-list");
@@ -401,6 +433,7 @@
       const progressText = document.getElementById("progress-text");
       const pinInputs = Array.from(document.querySelectorAll(".pin-boxes input"));
       const pinError = document.getElementById("pin-error");
+      const keepSignedIn = document.getElementById("keep-signed-in");
 
       let db = null;
       let currentUserId = null;
@@ -409,6 +442,8 @@
       let isAdding = false;
       let deferredInstallPrompt = null;
       let installOfferHandled = false;
+      let refreshTimer = null;
+      let taskChannel = null;
 
       datePicker.value = currentDate;
 
@@ -427,7 +462,32 @@
 
       function setPinDisabled(disabled) {
         pinInputs.forEach((input) => { input.disabled = disabled; });
+        keepSignedIn.disabled = disabled;
       }
+
+      function setKeepSignedIn(keep) {
+        if (keep) localStorage.setItem(KEEP_SIGNED_IN_KEY, "1");
+        else localStorage.removeItem(KEEP_SIGNED_IN_KEY);
+      }
+
+      const authStorage = {
+        getItem(key) {
+          return localStorage.getItem(KEEP_SIGNED_IN_KEY) === "1"
+            ? localStorage.getItem(key)
+            : sessionStorage.getItem(key);
+        },
+        setItem(key, value) {
+          const keep = localStorage.getItem(KEEP_SIGNED_IN_KEY) === "1";
+          const target = keep ? localStorage : sessionStorage;
+          const stale = keep ? sessionStorage : localStorage;
+          target.setItem(key, value);
+          stale.removeItem(key);
+        },
+        removeItem(key) {
+          localStorage.removeItem(key);
+          sessionStorage.removeItem(key);
+        }
+      };
 
       async function tryPin() {
         const pin = pinInputs.map((input) => input.value).join("");
@@ -442,17 +502,14 @@
           });
           if (loginError || !loginData || !loginData.token_hash) throw loginError || new Error("Login failed");
 
+          setKeepSignedIn(keepSignedIn.checked);
           const { data: authData, error: authError } = await db.auth.verifyOtp({
             token_hash: loginData.token_hash,
             type: "email"
           });
           if (authError || !authData.user) throw authError || new Error("Login failed");
 
-          currentUserId = authData.user.id;
-          document.body.classList.add("unlocked");
-          setControlsDisabled(false);
-          await loadTasks();
-          newTaskInput.focus();
+          await openApp(authData.user);
         } catch (_) {
           pinError.textContent = "That PIN isn't right, or login is temporarily unavailable.";
           pinInputs.forEach((input) => { input.value = ""; });
@@ -462,6 +519,7 @@
       }
 
       function initPinLock() {
+        keepSignedIn.checked = localStorage.getItem(KEEP_SIGNED_IN_KEY) === "1";
         setPinDisabled(false);
         pinInputs.forEach((input, index) => {
           input.addEventListener("input", () => {
@@ -604,7 +662,7 @@
               checkbox.checked = !requestedValue;
               li.classList.toggle("done", !requestedValue);
             } else {
-              await loadTasks();
+              scheduleLoad(400);
             }
             checkbox.disabled = false;
           });
@@ -694,6 +752,32 @@
         setStatus("");
       }
 
+      function scheduleLoad(delay = 80) {
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(loadTasks, delay);
+      }
+
+      function startTaskSync() {
+        if (taskChannel) return;
+        taskChannel = db
+          .channel(`task-sync-${currentUserId}`)
+          .on("postgres_changes", {
+            event: "*",
+            schema: "public",
+            table: TABLE_NAME
+          }, () => scheduleLoad())
+          .subscribe();
+      }
+
+      async function openApp(user) {
+        currentUserId = user.id;
+        document.body.classList.add("unlocked");
+        setControlsDisabled(false);
+        startTaskSync();
+        await loadTasks();
+        newTaskInput.focus();
+      }
+
       async function addTask() {
         if (!db || !currentUserId || isAdding) return;
 
@@ -728,7 +812,7 @@
 
         newTaskInput.value = "";
         if (currentDate === taskDate) {
-          await loadTasks();
+          scheduleLoad(400);
           newTaskInput.focus();
         }
       }
@@ -778,7 +862,7 @@
           return;
         }
 
-        await loadTasks();
+        scheduleLoad(400);
       }
 
       function confirmDelete(id, text) {
@@ -968,11 +1052,21 @@
 
           db = window.supabase.createClient(config.url, config.key, {
             auth: {
-              persistSession: false,
+              persistSession: true,
               autoRefreshToken: true,
-              detectSessionInUrl: false
+              detectSessionInUrl: false,
+              storage: authStorage
             }
           });
+
+          const { data: sessionData } = await db.auth.getSession();
+          if (sessionData.session) {
+            const { data: userData, error: userError } = await db.auth.getUser();
+            if (!userError && userData.user) {
+              await openApp(userData.user);
+              return;
+            }
+          }
 
           initPinLock();
         } catch (error) {

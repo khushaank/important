@@ -20,6 +20,19 @@ create index if not exists super_important_tasks_kh_7f3a9c_user_date_created_idx
 
 alter table public.super_important_tasks_kh_7f3a9c enable row level security;
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_catalog.pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'super_important_tasks_kh_7f3a9c'
+  ) then
+    alter publication supabase_realtime add table public.super_important_tasks_kh_7f3a9c;
+  end if;
+end;
+$$;
+
 create extension if not exists pgcrypto with schema extensions;
 
 create schema if not exists super_important_tasks_private;
