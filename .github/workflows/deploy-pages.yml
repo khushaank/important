@@ -63,9 +63,7 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
           rm -rf _site
-          mkdir -p _site/icons
-          cp index.html manifest.webmanifest service-worker.js favicon.ico .nojekyll _site/
-          cp icons/icon-192.png icons/icon-512.png _site/icons/
+          cp index.html manifest.webmanifest service-worker.js logo.png .nojekyll _site/
 
           node <<'NODE'
           const fs = require("fs");
@@ -100,7 +98,7 @@ jobs:
       - name: Verify deployment artifact
         run: |
           test -s _site/config.js
-          test -s _site/favicon.ico
+          test -s _site/logo.png
           ! grep -q 'YOUR_SUPABASE' _site/config.js
 
       - name: Configure GitHub Pages
