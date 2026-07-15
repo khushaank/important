@@ -1,4 +1,5 @@
-const CACHE_NAME = "super-important-tasks-shell-v7";
+const CACHE_NAME = "super-important-tasks-shell-v8";
+const SUPABASE_SDK_URL = "https://unpkg.com/@supabase/supabase-js@2.110.5/dist/umd/supabase.js";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -30,12 +31,21 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin) return;
+  const isAppAsset = requestUrl.origin === self.location.origin;
+  const isSupabaseSdk = requestUrl.href === SUPABASE_SDK_URL;
+  if (!isAppAsset && !isSupabaseSdk) return;
 
-  // Never cache deployment configuration. This prevents an old placeholder
-  // config from surviving after GitHub secrets are added or changed.
-  if (requestUrl.pathname.endsWith("/config.js")) {
-    event.respondWith(fetch(event.request, { cache: "no-store" }));
+  // Cache deployment config and the CDN SDK after a successful online load so
+  // the installed app can reopen offline. A fresh network response still wins.
+  if (requestUrl.pathname.endsWith("/config.js") || isSupabaseSdk) {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" })
+        .then((response) => {
+          if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 

@@ -20,6 +20,20 @@ create index if not exists super_important_tasks_kh_7f3a9c_user_date_created_idx
 
 alter table public.super_important_tasks_kh_7f3a9c enable row level security;
 
+create or replace view public.super_important_tasks_daily_progress
+with (security_invoker = true)
+as
+select
+  user_id,
+  task_date,
+  count(*)::integer as task_count,
+  count(*) filter (where completed)::integer as completed_count,
+  round(100.0 * count(*) filter (where completed) / nullif(count(*), 0))::integer as completion_percent
+from public.super_important_tasks_kh_7f3a9c
+group by user_id, task_date;
+
+grant select on public.super_important_tasks_daily_progress to authenticated;
+
 do $$
 begin
   if not exists (

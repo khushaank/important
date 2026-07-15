@@ -45,50 +45,88 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      margin: 4px 0 22px;
+      gap: 8px;
+      margin: 12px 0 26px;
       color: #555;
       font-size: 13px;
     }
 
     #progress-circle {
-      --progress: 0;
       position: relative;
       display: grid;
       place-items: center;
-      width: 132px;
-      height: 132px;
+      width: min(164px, 42vw);
+      aspect-ratio: 1;
       flex: 0 0 auto;
-      border: 1px solid #c00;
-      border-radius: 50%;
-      background: conic-gradient(#c00 calc(var(--progress) * 1%), #f3d6d6 0);
     }
 
-    #progress-circle::before {
-      content: "";
+    #progress-ring {
       position: absolute;
-      width: 104px;
-      height: 104px;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .progress-segment {
+      cursor: pointer;
+      transition: stroke-width .18s ease, opacity .18s ease;
+    }
+
+    .progress-segment:hover,
+    .progress-segment:focus-visible,
+    .progress-segment.active {
+      stroke-width: 15;
+      outline: none;
+    }
+
+    .progress-center {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 66%;
+      aspect-ratio: 1;
       border-radius: 50%;
       background: #fff;
+      box-shadow: 0 3px 16px rgba(216, 21, 50, .10);
     }
 
     #progress-count {
-      position: relative;
-      z-index: 1;
-      color: #c00;
-      font-size: 23px;
+      color: #c91632;
+      font-size: clamp(20px, 6vw, 27px);
       font-weight: 600;
+      line-height: 1;
     }
 
     #progress-label {
-      position: relative;
-      z-index: 1;
-      margin-top: -2px;
-      color: #666;
+      margin-top: 2px;
+      color: #777;
       font-size: 9px;
+      font-weight: 700;
+      letter-spacing: .12em;
+    }
+
+    #progress-task-preview {
+      min-height: 20px;
+      max-width: 280px;
+      margin: 0;
+      color: #8d2435;
+      font-size: 12px;
       font-weight: 600;
-      letter-spacing: .08em;
+      text-align: center;
+    }
+
+    #sync-status {
+      min-height: 18px;
+      margin: 0;
+      color: #6e6e6e;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    #sync-status.offline {
+      color: #a45b16;
     }
 
     button:focus-visible,
@@ -249,19 +287,73 @@
       padding: 0;
     }
 
+    ul#completed-task-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .task-section {
+      margin-top: 20px;
+    }
+
+    .task-section h2 {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 0 2px 9px;
+      color: #3b3b3b;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+
+    .task-section h2 > span:last-child {
+      color: #a4a4a4;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    #done-section h2 > span:first-child {
+      color: #8d2435;
+    }
+
     li.task {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 0;
-      border-bottom: 1px solid #eee;
+      margin-bottom: 8px;
+      padding: 12px;
+      border: 1px solid #eee;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(17, 17, 17, .03);
+      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+    }
+
+    li.task:hover {
+      transform: translateY(-1px);
+      border-color: #f1c5cd;
+      box-shadow: 0 7px 18px rgba(201, 22, 50, .08);
     }
 
     li.task input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
+      appearance: none;
+      width: 21px;
+      height: 21px;
       flex-shrink: 0;
       cursor: pointer;
+      border: 2px solid #b7b7b7;
+      border-radius: 50%;
+      background: #fff;
+      transition: background .16s ease, border-color .16s ease, transform .16s ease;
+    }
+
+    li.task input[type="checkbox"]:checked {
+      border-color: #c91632;
+      background: #c91632;
+      box-shadow: inset 0 0 0 4px #fff;
+      transform: scale(1.05);
     }
 
     li.task span.text {
@@ -287,8 +379,14 @@
     }
 
     li.task.done span.text {
+      color: #919191;
       text-decoration: line-through;
-      color: #999;
+      text-decoration-color: #c91632;
+      text-decoration-thickness: 2px;
+    }
+
+    li.task.done {
+      background: #fffafb;
     }
 
     li.task button.delete {
@@ -302,6 +400,26 @@
 
     li.task button.delete:hover {
       color: #c00;
+    }
+
+    @media (max-width: 380px) {
+      body {
+        padding-inline: 12px;
+      }
+
+      #progress-circle {
+        width: 144px;
+      }
+
+      li.task {
+        padding: 10px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+      }
     }
 
     #empty-msg,
@@ -399,14 +517,26 @@
     <div class="progress-card">
       <div id="progress-circle" role="progressbar" aria-label="Task completion progress" aria-valuemin="0"
         aria-valuemax="100" aria-valuenow="0">
-        <span id="progress-count">0/0</span>
-        <span id="progress-label">TASKS</span>
+        <svg id="progress-ring" viewBox="0 0 100 100" aria-hidden="true"></svg>
+        <div class="progress-center">
+          <span id="progress-count">0/0</span>
+          <span id="progress-label">TASKS</span>
+        </div>
       </div>
       <span id="progress-text">0 of 0 tasks completed</span>
+      <p id="progress-task-preview" aria-live="polite">Hold a ring segment to see its task.</p>
+      <p id="sync-status" aria-live="polite"></p>
     </div>
 
-    <ul id="task-list"></ul>
-    <div id="empty-msg" style="display:none;">Nothing here yet for this date.</div>
+    <section class="task-section" aria-labelledby="todo-heading">
+      <h2 id="todo-heading">Still to do <span id="todo-count">0</span></h2>
+      <ul id="task-list"></ul>
+      <div id="empty-msg" style="display:none;">Nothing left for this date.</div>
+    </section>
+    <section id="done-section" class="task-section" aria-labelledby="done-heading" hidden>
+      <h2 id="done-heading"><span id="done-title">Done today</span><span id="done-count">0</span></h2>
+      <ul id="completed-task-list"></ul>
+    </section>
     <div id="status-msg"></div>
   </main>
 
@@ -422,15 +552,23 @@
 
       const statusEl = document.getElementById("status-msg");
       const listEl = document.getElementById("task-list");
+      const completedListEl = document.getElementById("completed-task-list");
+      const doneSection = document.getElementById("done-section");
       const emptyEl = document.getElementById("empty-msg");
+      const todoCount = document.getElementById("todo-count");
+      const doneCount = document.getElementById("done-count");
+      const doneTitle = document.getElementById("done-title");
       const datePicker = document.getElementById("date-picker");
       const newTaskInput = document.getElementById("new-task");
       const addButton = document.getElementById("add-btn");
       const prevButton = document.getElementById("prev-day");
       const nextButton = document.getElementById("next-day");
       const progressCircle = document.getElementById("progress-circle");
+      const progressRing = document.getElementById("progress-ring");
       const progressCount = document.getElementById("progress-count");
       const progressText = document.getElementById("progress-text");
+      const progressPreview = document.getElementById("progress-task-preview");
+      const syncStatus = document.getElementById("sync-status");
       const pinInputs = Array.from(document.querySelectorAll(".pin-boxes input"));
       const pinError = document.getElementById("pin-error");
       const keepSignedIn = document.getElementById("keep-signed-in");
@@ -444,6 +582,7 @@
       let installOfferHandled = false;
       let refreshTimer = null;
       let taskChannel = null;
+      let offlineDb = null;
 
       datePicker.value = currentDate;
 
@@ -628,22 +767,20 @@
 
       function renderTasks(tasks, chartTasks) {
         listEl.innerHTML = "";
+        completedListEl.innerHTML = "";
 
-        const { completedCount, taskCount } = calculateProgress(chartTasks || tasks);
-        const percent = taskCount ? Math.round((completedCount / taskCount) * 100) : 0;
-        progressCircle.style.setProperty("--progress", String(percent));
-        progressCircle.setAttribute("aria-valuenow", String(percent));
-        progressCount.textContent = `${completedCount}/${taskCount}`;
-        progressText.textContent = `${completedCount} of ${taskCount} tasks completed`;
+        renderProgress(chartTasks || tasks);
 
-        if (!Array.isArray(tasks) || tasks.length === 0) {
-          emptyEl.style.display = "block";
-          return;
-        }
+        const list = Array.isArray(tasks) ? tasks : [];
+        const remaining = list.filter((task) => !task.completed);
+        const done = list.filter((task) => task.completed);
+        todoCount.textContent = `${remaining.length} left`;
+        doneCount.textContent = `${done.length} complete`;
+        doneTitle.textContent = currentDate === toDateStr(new Date()) ? "Done today" : `Done on ${formatTaskDate(currentDate)}`;
+        emptyEl.style.display = remaining.length ? "none" : "block";
+        doneSection.hidden = done.length === 0;
 
-        emptyEl.style.display = "none";
-
-        tasks.forEach((task) => {
+        [...remaining, ...done].forEach((task) => {
           const li = document.createElement("li");
           li.className = "task" + (task.completed ? " done" : "");
           li.dataset.id = task.id;
@@ -657,12 +794,10 @@
             const requestedValue = checkbox.checked;
             li.classList.toggle("done", requestedValue);
 
-            const ok = await toggleTask(task.id, requestedValue);
+            const ok = await toggleTask(task, requestedValue);
             if (!ok) {
               checkbox.checked = !requestedValue;
               li.classList.toggle("done", !requestedValue);
-            } else {
-              scheduleLoad(400);
             }
             checkbox.disabled = false;
           });
@@ -693,7 +828,7 @@
           li.appendChild(checkbox);
           li.appendChild(copy);
           li.appendChild(deleteButton);
-          listEl.appendChild(li);
+          (task.completed ? completedListEl : listEl).appendChild(li);
         });
       }
 
@@ -705,9 +840,196 @@
         };
       }
 
+      function renderProgress(tasks) {
+        const list = Array.isArray(tasks) ? tasks : [];
+        const { completedCount, taskCount } = calculateProgress(list);
+        const percent = taskCount ? Math.round((completedCount / taskCount) * 100) : 0;
+        const segmentSize = taskCount ? Math.max((100 / taskCount) - Math.min(1.7, 30 / taskCount), .8) : 0;
+
+        progressRing.innerHTML = "";
+        progressCircle.setAttribute("aria-valuenow", String(percent));
+        progressCount.textContent = `${completedCount}/${taskCount}`;
+        progressText.textContent = `${percent}% complete · ${completedCount} of ${taskCount} tasks`;
+
+        if (!taskCount) {
+          const emptyRing = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          emptyRing.setAttribute("cx", "50");
+          emptyRing.setAttribute("cy", "50");
+          emptyRing.setAttribute("r", "41");
+          emptyRing.setAttribute("fill", "none");
+          emptyRing.setAttribute("stroke", "#f0d7dc");
+          emptyRing.setAttribute("stroke-width", "10");
+          emptyRing.setAttribute("stroke-dasharray", "2 3");
+          progressRing.appendChild(emptyRing);
+          progressPreview.textContent = "Add a task to start your ring.";
+          return;
+        }
+
+        progressPreview.textContent = "Hold a ring segment to see its task.";
+        list.forEach((task, index) => {
+          const segment = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          const state = task.completed ? "completed" : "to do";
+          segment.setAttribute("class", "progress-segment");
+          segment.setAttribute("cx", "50");
+          segment.setAttribute("cy", "50");
+          segment.setAttribute("r", "41");
+          segment.setAttribute("pathLength", "100");
+          segment.setAttribute("fill", "none");
+          segment.setAttribute("stroke", task.completed ? "#c91632" : "#f0cbd2");
+          segment.setAttribute("stroke-width", "11");
+          segment.setAttribute("stroke-linecap", "round");
+          segment.setAttribute("stroke-dasharray", `${segmentSize} ${100 - segmentSize}`);
+          segment.setAttribute("stroke-dashoffset", String(-(index * (100 / taskCount))));
+          segment.setAttribute("transform", "rotate(-90 50 50)");
+          segment.setAttribute("tabindex", "0");
+          segment.setAttribute("role", "img");
+          segment.setAttribute("aria-label", `${task.task_text}, ${state}`);
+
+          const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+          title.textContent = task.task_text;
+          segment.appendChild(title);
+
+          const reveal = () => {
+            progressRing.querySelectorAll(".progress-segment.active").forEach((item) => item.classList.remove("active"));
+            segment.classList.add("active");
+            progressPreview.textContent = `${task.completed ? "Done" : "To do"}: ${task.task_text}`;
+          };
+          const hide = () => {
+            segment.classList.remove("active");
+            progressPreview.textContent = "Hold a ring segment to see its task.";
+          };
+          segment.addEventListener("pointerenter", reveal);
+          segment.addEventListener("pointerdown", reveal);
+          segment.addEventListener("focus", reveal);
+          segment.addEventListener("pointerleave", hide);
+          segment.addEventListener("pointerup", hide);
+          segment.addEventListener("pointercancel", hide);
+          segment.addEventListener("blur", hide);
+          progressRing.appendChild(segment);
+        });
+      }
+
       function formatTaskDate(value) {
         const date = fromDateStr(value);
         return date ? date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : value;
+      }
+
+      function setSyncStatus(message, isOffline) {
+        syncStatus.textContent = message || "";
+        syncStatus.classList.toggle("offline", Boolean(isOffline));
+      }
+
+      function getOfflineDb() {
+        if (offlineDb) return offlineDb;
+        offlineDb = new Promise((resolve, reject) => {
+          const request = indexedDB.open("super-important-tasks", 1);
+          request.onupgradeneeded = () => {
+            const database = request.result;
+            database.createObjectStore("tasks", { keyPath: "id" });
+            database.createObjectStore("mutations", { keyPath: "id" });
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        return offlineDb;
+      }
+
+      async function readLocalTasks(userId) {
+        const database = await getOfflineDb();
+        return new Promise((resolve, reject) => {
+          const request = database.transaction("tasks", "readonly").objectStore("tasks").getAll();
+          request.onsuccess = () => resolve(request.result.filter((task) => task.user_id === userId));
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async function putLocalTask(task) {
+        const database = await getOfflineDb();
+        return new Promise((resolve, reject) => {
+          const request = database.transaction("tasks", "readwrite").objectStore("tasks").put(task);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async function deleteLocalTask(id) {
+        const database = await getOfflineDb();
+        return new Promise((resolve, reject) => {
+          const request = database.transaction("tasks", "readwrite").objectStore("tasks").delete(id);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async function replaceLocalTasks(userId, tasks) {
+        const database = await getOfflineDb();
+        return new Promise((resolve, reject) => {
+          const transaction = database.transaction("tasks", "readwrite");
+          const store = transaction.objectStore("tasks");
+          const existing = store.getAll();
+          existing.onsuccess = () => {
+            existing.result.filter((task) => task.user_id === userId).forEach((task) => store.delete(task.id));
+            tasks.forEach((task) => store.put(task));
+          };
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+        });
+      }
+
+      async function queueMutation(mutation) {
+        const database = await getOfflineDb();
+        return new Promise((resolve, reject) => {
+          const request = database.transaction("mutations", "readwrite").objectStore("mutations").put({
+            ...mutation,
+            id: `${Date.now()}-${Math.random()}`,
+            created_at: new Date().toISOString()
+          });
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async function getQueuedMutations() {
+        const database = await getOfflineDb();
+        return new Promise((resolve, reject) => {
+          const request = database.transaction("mutations", "readonly").objectStore("mutations").getAll();
+          request.onsuccess = () => resolve(request.result.sort((a, b) => a.created_at.localeCompare(b.created_at)));
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async function removeQueuedMutation(id) {
+        const database = await getOfflineDb();
+        return new Promise((resolve, reject) => {
+          const request = database.transaction("mutations", "readwrite").objectStore("mutations").delete(id);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      }
+
+      async function flushQueuedMutations() {
+        if (!navigator.onLine || !db || !currentUserId) return false;
+        const mutations = await getQueuedMutations();
+        for (const mutation of mutations) {
+          const result = mutation.type === "delete"
+            ? await db.from(TABLE_NAME).delete().eq("id", mutation.id_to_delete).eq("user_id", currentUserId)
+            : await db.from(TABLE_NAME).upsert(mutation.task);
+          if (result.error) return false;
+          await removeQueuedMutation(mutation.id);
+        }
+        return true;
+      }
+
+      function sortTasks(tasks) {
+        return tasks.slice().sort((a, b) => `${a.created_at}${a.id}`.localeCompare(`${b.created_at}${b.id}`));
+      }
+
+      function visibleTasks(tasks, requestedDate) {
+        const dailyTasks = sortTasks(tasks.filter((task) => task.task_date === requestedDate));
+        const overdue = requestedDate === toDateStr(new Date())
+          ? sortTasks(tasks.filter((task) => !task.completed && task.task_date < requestedDate))
+          : [];
+        return { dailyTasks, visible: dailyTasks.concat(overdue) };
       }
 
       async function loadTasks() {
@@ -715,41 +1037,30 @@
 
         const loadId = ++latestLoadId;
         const requestedDate = currentDate;
-        setStatus("Loading...");
+        let remoteLoaded = false;
 
-        const dailyRequest = db
-          .from(TABLE_NAME)
-          .select("id, task_text, completed, task_date, created_at")
-          .eq("user_id", currentUserId)
-          .eq("task_date", requestedDate)
-          .order("created_at", { ascending: true })
-          .order("id", { ascending: true });
-
-        const overdueRequest = requestedDate === toDateStr(new Date())
-          ? db
-            .from(TABLE_NAME)
-            .select("id, task_text, completed, task_date, created_at")
-            .eq("user_id", currentUserId)
-            .eq("completed", false)
-            .lt("task_date", requestedDate)
-            .order("task_date", { ascending: true })
-            .order("created_at", { ascending: true })
-          : Promise.resolve({ data: [], error: null });
-
-        const [dailyResult, overdueResult] = await Promise.all([dailyRequest, overdueRequest]);
-
-        if (loadId !== latestLoadId || requestedDate !== currentDate) return;
-
-        const error = dailyResult.error || overdueResult.error;
-        if (error) {
-          renderTasks([], []);
-          setStatus("Couldn't load tasks: " + error.message, true);
-          return;
+        if (navigator.onLine) {
+          setSyncStatus("Syncing your changes…");
+          if (await flushQueuedMutations()) {
+            const { data, error } = await db
+              .from(TABLE_NAME)
+              .select("id, user_id, task_text, completed, task_date, created_at, updated_at")
+              .eq("user_id", currentUserId);
+            if (!error) {
+              await replaceLocalTasks(currentUserId, data || []);
+              remoteLoaded = true;
+            }
+          }
         }
 
-        const dailyTasks = dailyResult.data || [];
-        renderTasks(dailyTasks.concat(overdueResult.data || []), dailyTasks);
+        const cachedTasks = await readLocalTasks(currentUserId);
+        if (loadId !== latestLoadId || requestedDate !== currentDate) return;
+
+        const taskSet = visibleTasks(cachedTasks, requestedDate);
+        renderTasks(taskSet.visible, taskSet.dailyTasks);
         setStatus("");
+        if (remoteLoaded) setSyncStatus("Synced");
+        else setSyncStatus("Offline — saved on this device and ready to sync", true);
       }
 
       function scheduleLoad(delay = 80) {
@@ -790,79 +1101,53 @@
         isAdding = true;
         addButton.disabled = true;
         newTaskInput.disabled = true;
-        const taskDate = currentDate;
-        setStatus("Saving...");
-
-        const { error } = await db.from(TABLE_NAME).insert({
+        const now = new Date().toISOString();
+        const task = {
+          id: crypto.randomUUID(),
           user_id: currentUserId,
           task_text: text,
-          task_date: taskDate,
-          completed: false
-        });
+          task_date: currentDate,
+          completed: false,
+          created_at: now,
+          updated_at: now
+        };
 
-        isAdding = false;
-        addButton.disabled = false;
-        newTaskInput.disabled = false;
-
-        if (error) {
-          setStatus("Couldn't add task: " + error.message, true);
-          newTaskInput.focus();
-          return;
-        }
-
-        newTaskInput.value = "";
-        if (currentDate === taskDate) {
-          scheduleLoad(400);
+        try {
+          await putLocalTask(task);
+          await queueMutation({ type: "upsert", task });
+          newTaskInput.value = "";
+          await loadTasks();
+        } catch (_) {
+          setStatus("Couldn't save this task on the device.", true);
+        } finally {
+          isAdding = false;
+          addButton.disabled = false;
+          newTaskInput.disabled = false;
           newTaskInput.focus();
         }
       }
 
-      async function toggleTask(id, completed) {
-        setStatus("Saving...");
-
-        const { data, error } = await db
-          .from(TABLE_NAME)
-          .update({
-            completed,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", id)
-          .eq("user_id", currentUserId)
-          .select("id")
-          .maybeSingle();
-
-        if (error || !data) {
-          setStatus(
-            "Couldn't update task: " + (error ? error.message : "Task was not found."),
-            true
-          );
+      async function toggleTask(task, completed) {
+        try {
+          const updatedTask = { ...task, completed, updated_at: new Date().toISOString() };
+          await putLocalTask(updatedTask);
+          await queueMutation({ type: "upsert", task: updatedTask });
+          await loadTasks();
+          return true;
+        } catch (_) {
+          setStatus("Couldn't save this change on the device.", true);
           return false;
         }
-
-        setStatus("");
-        return true;
       }
 
       async function deleteTask(id) {
-        setStatus("Deleting...");
-
-        const { data, error } = await db
-          .from(TABLE_NAME)
-          .delete()
-          .eq("id", id)
-          .eq("user_id", currentUserId)
-          .select("id")
-          .maybeSingle();
-
-        if (error || !data) {
-          setStatus(
-            "Couldn't delete task: " + (error ? error.message : "Task was not found."),
-            true
-          );
-          return;
+        try {
+          await deleteLocalTask(id);
+          await queueMutation({ type: "delete", id_to_delete: id });
+          await loadTasks();
+        } catch (_) {
+          setStatus("Couldn't save this deletion on the device.", true);
         }
-
-        scheduleLoad(400);
       }
 
       function confirmDelete(id, text) {
@@ -1011,6 +1296,9 @@
       function wireEvents() {
         addButton.addEventListener("click", addTask);
 
+        window.addEventListener("online", () => loadTasks());
+        window.addEventListener("offline", () => setSyncStatus("Offline — saved on this device and ready to sync", true));
+
         newTaskInput.addEventListener("keydown", (event) => {
           if (event.key === "Enter") addTask();
         });
@@ -1059,8 +1347,20 @@
             }
           });
 
+          db.auth.onAuthStateChange((event) => {
+            if (event !== "SIGNED_OUT") return;
+            currentUserId = null;
+            document.body.classList.remove("unlocked");
+            setControlsDisabled(true);
+            initPinLock();
+          });
+
           const { data: sessionData } = await db.auth.getSession();
           if (sessionData.session) {
+            if (!navigator.onLine) {
+              await openApp(sessionData.session.user);
+              return;
+            }
             const { data: userData, error: userError } = await db.auth.getUser();
             if (!userError && userData.user) {
               await openApp(userData.user);
