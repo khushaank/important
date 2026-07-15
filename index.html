@@ -540,6 +540,7 @@
       const TABLE_NAME = "super_important_tasks_kh_7f3a9c";
       const INSTALL_DISMISSED_KEY = "sit_install_prompt_dismissed_v1";
       const KEEP_SIGNED_IN_KEY = "sit_keep_signed_in_v1";
+      const OFFLINE_USER_KEY = "sit_offline_user_v1";
 
       const statusEl = document.getElementById("status-msg");
       const listEl = document.getElementById("task-list");
@@ -595,7 +596,27 @@
 
       function setKeepSignedIn(keep) {
         if (keep) localStorage.setItem(KEEP_SIGNED_IN_KEY, "1");
-        else localStorage.removeItem(KEEP_SIGNED_IN_KEY);
+        else {
+          localStorage.removeItem(KEEP_SIGNED_IN_KEY);
+          localStorage.removeItem(OFFLINE_USER_KEY);
+        }
+      }
+
+      function rememberOfflineUser(userId) {
+        if (localStorage.getItem(KEEP_SIGNED_IN_KEY) === "1") {
+          localStorage.setItem(OFFLINE_USER_KEY, userId);
+        }
+      }
+
+      function getOfflineUserId() {
+        if (localStorage.getItem(KEEP_SIGNED_IN_KEY) !== "1") return null;
+        const userId = localStorage.getItem(OFFLINE_USER_KEY);
+        return userId && /^[0-9a-f-]{36}$/i.test(userId) ? userId : null;
+      }
+
+      function forgetTrustedDevice() {
+        localStorage.removeItem(KEEP_SIGNED_IN_KEY);
+        localStorage.removeItem(OFFLINE_USER_KEY);
       }
 
       const authStorage = {
@@ -1007,13 +1028,41 @@
         });
       }
 
+      async function mergeQueuedTask(task) {
+        const merged = await db.rpc("merge_super_important_task", {
+          p_id: task.id,
+          p_task_text: task.task_text,
+          p_completed: task.completed,
+          p_task_date: task.task_date,
+          p_created_at: task.created_at,
+          p_updated_at: task.updated_at
+        });
+        if (!merged.error) return merged;
+
+        const missingFunction = merged.error.code === "PGRST202" ||
+          /merge_super_important_task/i.test(merged.error.message || "");
+        if (!missingFunction) return merged;
+
+        const current = await db
+          .from(TABLE_NAME)
+          .select("updated_at")
+          .eq("id", task.id)
+          .eq("user_id", currentUserId)
+          .maybeSingle();
+        if (current.error) return current;
+        if (current.data && Date.parse(current.data.updated_at) >= Date.parse(task.updated_at)) {
+          return { error: null };
+        }
+        return db.from(TABLE_NAME).upsert(task);
+      }
+
       async function flushQueuedMutations() {
         if (!navigator.onLine || !db || !currentUserId) return false;
         const mutations = await getQueuedMutations();
         for (const mutation of mutations) {
           const result = mutation.type === "delete"
             ? await db.from(TABLE_NAME).delete().eq("id", mutation.id_to_delete).eq("user_id", currentUserId)
-            : await db.from(TABLE_NAME).upsert(mutation.task);
+            : await mergeQueuedTask(mutation.task);
           if (result.error) return false;
           await removeQueuedMutation(mutation.id);
         }
@@ -1033,13 +1082,13 @@
       }
 
       async function loadTasks() {
-        if (!db || !currentUserId) return;
+        if (!currentUserId) return;
 
         const loadId = ++latestLoadId;
         const requestedDate = currentDate;
         let remoteLoaded = false;
 
-        if (navigator.onLine) {
+        if (navigator.onLine && db) {
           setSyncStatus("Syncing your changes…");
           if (await flushQueuedMutations()) {
             const { data, error } = await db
@@ -1069,7 +1118,7 @@
       }
 
       function startTaskSync() {
-        if (taskChannel) return;
+        if (!db || taskChannel) return;
         taskChannel = db
           .channel(`task-sync-${currentUserId}`)
           .on("postgres_changes", {
@@ -1082,6 +1131,7 @@
 
       async function openApp(user) {
         currentUserId = user.id;
+        rememberOfflineUser(user.id);
         document.body.classList.add("unlocked");
         document.body.classList.remove("session-loading");
         setControlsDisabled(false);
@@ -1091,7 +1141,7 @@
       }
 
       async function addTask() {
-        if (!db || !currentUserId || isAdding) return;
+        if (!currentUserId || isAdding) return;
 
         const text = newTaskInput.value.trim();
         if (!text) {
@@ -1297,7 +1347,24 @@
       function wireEvents() {
         addButton.addEventListener("click", addTask);
 
-        window.addEventListener("online", () => loadTasks());
+        window.addEventListener("online", async () => {
+          if (!db) {
+            location.reload();
+            return;
+          }
+
+          const { data, error } = await db.auth.getSession();
+          if (error || !data.session) {
+            forgetTrustedDevice();
+            currentUserId = null;
+            document.body.classList.remove("unlocked");
+            setControlsDisabled(true);
+            initPinLock();
+            return;
+          }
+
+          await loadTasks();
+        });
         window.addEventListener("offline", () => setSyncStatus("Offline — saved on this device and ready to sync", true));
 
         newTaskInput.addEventListener("keydown", (event) => {
@@ -1349,7 +1416,8 @@
           });
 
           db.auth.onAuthStateChange((event) => {
-            if (event !== "SIGNED_OUT") return;
+            if (event !== "SIGNED_OUT" || !navigator.onLine) return;
+            forgetTrustedDevice();
             currentUserId = null;
             document.body.classList.remove("unlocked");
             setControlsDisabled(true);
@@ -1369,8 +1437,19 @@
             }
           }
 
+          const offlineUserId = getOfflineUserId();
+          if (!navigator.onLine && offlineUserId) {
+            await openApp({ id: offlineUserId });
+            return;
+          }
+
           initPinLock();
         } catch (error) {
+          const offlineUserId = getOfflineUserId();
+          if (!navigator.onLine && offlineUserId) {
+            await openApp({ id: offlineUserId });
+            return;
+          }
           document.body.classList.remove("session-loading");
           pinError.textContent = error instanceof Error ? error.message : String(error);
         }

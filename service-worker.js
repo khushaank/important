@@ -1,8 +1,9 @@
-const CACHE_NAME = "super-important-tasks-shell-v10";
+const CACHE_NAME = "super-important-tasks-shell-v11";
 const SUPABASE_SDK_URL = "https://unpkg.com/@supabase/supabase-js@2.110.5/dist/umd/supabase.js";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./config.js",
   "./manifest.webmanifest",
   "./logo.png"
 ];
@@ -10,7 +11,10 @@ const APP_SHELL = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then(async (cache) => {
+        await cache.addAll(APP_SHELL);
+        await cache.add(SUPABASE_SDK_URL).catch(() => {});
+      })
       .then(() => self.skipWaiting())
   );
 });
@@ -42,7 +46,7 @@ self.addEventListener("fetch", (event) => {
           if (response.ok) caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(event.request, { ignoreSearch: true }))
     );
     return;
   }

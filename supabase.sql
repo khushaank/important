@@ -224,5 +224,55 @@ create policy "kh_tasks_delete_own"
     and (select super_important_tasks_private.is_owner())
   );
 
+-- Merge queued device changes without letting a late reconnect overwrite a
+-- newer edit. Different offline-created tasks have different UUIDs, so they
+-- are all inserted; edits to the same task use the newest updated_at value.
+create or replace function public.merge_super_important_task(
+  p_id uuid,
+  p_task_text text,
+  p_completed boolean,
+  p_task_date date,
+  p_created_at timestamptz,
+  p_updated_at timestamptz
+)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$
+  insert into public.super_important_tasks_kh_7f3a9c as current_task (
+    id,
+    user_id,
+    task_text,
+    completed,
+    task_date,
+    created_at,
+    updated_at
+  )
+  values (
+    p_id,
+    (select auth.uid()),
+    btrim(p_task_text),
+    p_completed,
+    p_task_date,
+    p_created_at,
+    p_updated_at
+  )
+  on conflict (id) do update
+  set
+    task_text = excluded.task_text,
+    completed = excluded.completed,
+    task_date = excluded.task_date,
+    updated_at = excluded.updated_at
+  where excluded.updated_at > current_task.updated_at;
+$$;
+
+revoke all on function public.merge_super_important_task(
+  uuid, text, boolean, date, timestamptz, timestamptz
+) from public, anon;
+grant execute on function public.merge_super_important_task(
+  uuid, text, boolean, date, timestamptz, timestamptz
+) to authenticated;
+
 comment on table public.super_important_tasks_kh_7f3a9c is
   'Date-based super important tasks, isolated per Supabase Auth user by RLS.';
