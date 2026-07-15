@@ -2,7 +2,7 @@ name: Deploy Super Important Tasks
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "master"]
   workflow_dispatch:
 
 permissions:
@@ -21,13 +21,41 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Validate required secrets
+      - name: Validate Supabase secrets
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
         run: |
-          test -n "$SUPABASE_URL" || (echo "Missing SUPABASE_URL secret" && exit 1)
-          test -n "$SUPABASE_PUBLISHABLE_KEY" || (echo "Missing SUPABASE_PUBLISHABLE_KEY secret" && exit 1)
+          node <<'NODE'
+          function clean(value, name) {
+            let result = String(value || "").trim();
+            const prefix = name + "=";
+            if (result.startsWith(prefix)) result = result.slice(prefix.length).trim();
+            if (
+              (result.startsWith('"') && result.endsWith('"')) ||
+              (result.startsWith("'") && result.endsWith("'"))
+            ) {
+              result = result.slice(1, -1).trim();
+            }
+            return result;
+          }
+
+          const url = clean(process.env.SUPABASE_URL, "SUPABASE_URL");
+          const key = clean(
+            process.env.SUPABASE_PUBLISHABLE_KEY,
+            "SUPABASE_PUBLISHABLE_KEY"
+          );
+
+          if (!url) throw new Error("Missing SUPABASE_URL repository secret");
+          let parsed;
+          try { parsed = new URL(url); } catch { throw new Error("SUPABASE_URL is not a valid URL"); }
+          if (parsed.protocol !== "https:" || !parsed.hostname) {
+            throw new Error("SUPABASE_URL must be a complete HTTPS URL");
+          }
+          if (!key || key.length < 20) {
+            throw new Error("Missing or invalid SUPABASE_PUBLISHABLE_KEY repository secret");
+          }
+          NODE
 
       - name: Build static site
         env:
@@ -36,20 +64,44 @@ jobs:
         run: |
           rm -rf _site
           mkdir -p _site/icons
-          cp index.html manifest.webmanifest service-worker.js .nojekyll _site/
+          cp index.html manifest.webmanifest service-worker.js favicon.ico .nojekyll _site/
           cp icons/icon-192.png icons/icon-512.png _site/icons/
 
           node <<'NODE'
           const fs = require("fs");
+
+          function clean(value, name) {
+            let result = String(value || "").trim();
+            const prefix = name + "=";
+            if (result.startsWith(prefix)) result = result.slice(prefix.length).trim();
+            if (
+              (result.startsWith('"') && result.endsWith('"')) ||
+              (result.startsWith("'") && result.endsWith("'"))
+            ) {
+              result = result.slice(1, -1).trim();
+            }
+            return result;
+          }
+
           const config = {
-            SUPABASE_URL: process.env.SUPABASE_URL,
-            SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY
+            SUPABASE_URL: clean(process.env.SUPABASE_URL, "SUPABASE_URL"),
+            SUPABASE_PUBLISHABLE_KEY: clean(
+              process.env.SUPABASE_PUBLISHABLE_KEY,
+              "SUPABASE_PUBLISHABLE_KEY"
+            )
           };
+
           fs.writeFileSync(
             "_site/config.js",
             `window.APP_CONFIG = Object.freeze(${JSON.stringify(config, null, 2)});\n`
           );
           NODE
+
+      - name: Verify deployment artifact
+        run: |
+          test -s _site/config.js
+          test -s _site/favicon.ico
+          ! grep -q 'YOUR_SUPABASE' _site/config.js
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

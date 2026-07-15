@@ -1,9 +1,9 @@
-const CACHE_NAME = "super-important-tasks-shell-v1";
+const CACHE_NAME = "super-important-tasks-shell-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./config.js",
   "./manifest.webmanifest",
+  "./favicon.ico",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
 ];
@@ -32,13 +32,24 @@ self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
 
+  // Never cache deployment configuration. This prevents an old placeholder
+  // config from surviving after GitHub secrets are added or changed.
+  if (requestUrl.pathname.endsWith("/config.js")) {
+    event.respondWith(fetch(event.request, { cache: "no-store" }));
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
+      .catch(() => caches.match(event.request).then(
+        (cached) => cached || caches.match("./index.html")
+      ))
   );
 });

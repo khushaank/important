@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Super Important Tasks</title>
+<link rel="icon" href="./favicon.ico" sizes="any">
 <style>
   * { box-sizing: border-box; }
   body {
@@ -168,7 +169,7 @@
 <div id="empty-msg" style="display:none;">Nothing here yet for this date.</div>
 <div id="status-msg"></div>
 
-<script src="./config.js"></script>
+<script src="./config.js?v=3"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2.110.5/dist/umd/supabase.js"></script>
 <script>
 (function () {
@@ -238,23 +239,66 @@
     return date;
   }
 
+  function cleanConfigValue(value, variableName) {
+    let result = String(value || "").trim();
+    const assignmentPrefix = variableName + "=";
+
+    if (result.startsWith(assignmentPrefix)) {
+      result = result.slice(assignmentPrefix.length).trim();
+    }
+
+    const isDoubleQuoted = result.startsWith('"') && result.endsWith('"');
+    const isSingleQuoted = result.startsWith("'") && result.endsWith("'");
+    if (isDoubleQuoted || isSingleQuoted) {
+      result = result.slice(1, -1).trim();
+    }
+
+    return result;
+  }
+
   function getConfig() {
     const config = window.APP_CONFIG;
     if (!config || typeof config !== "object") {
-      throw new Error("Missing config.js. Deploy through the included GitHub Pages workflow.");
+      throw new Error(
+        "Missing deployment config. In GitHub: Settings → Pages → Source must be GitHub Actions, then rerun the deployment workflow."
+      );
     }
 
-    const url = String(config.SUPABASE_URL || "").trim();
-    const key = String(config.SUPABASE_PUBLISHABLE_KEY || "").trim();
+    const rawUrl = cleanConfigValue(config.SUPABASE_URL, "SUPABASE_URL");
+    const key = cleanConfigValue(
+      config.SUPABASE_PUBLISHABLE_KEY,
+      "SUPABASE_PUBLISHABLE_KEY"
+    );
 
-    if (!/^https:\/\/.+\.supabase\.co\/?$/.test(url)) {
-      throw new Error("SUPABASE_URL is missing or invalid.");
-    }
-    if (!key || key.includes("YOUR_")) {
-      throw new Error("SUPABASE_PUBLISHABLE_KEY is missing.");
+    if (!rawUrl || rawUrl.includes("YOUR_")) {
+      throw new Error(
+        "SUPABASE_URL was not injected. Rerun the GitHub Pages workflow after adding the repository secrets."
+      );
     }
 
-    return { url, key };
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(rawUrl);
+    } catch (_) {
+      throw new Error(
+        "SUPABASE_URL is invalid. Save only the Project URL, for example https://your-project.supabase.co, without the variable name."
+      );
+    }
+
+    if (parsedUrl.protocol !== "https:" || !parsedUrl.hostname) {
+      throw new Error("SUPABASE_URL must be a complete HTTPS URL.");
+    }
+
+    if (!key || key.includes("YOUR_") || key.length < 20) {
+      throw new Error(
+        "SUPABASE_PUBLISHABLE_KEY was not injected. Add the publishable key as a repository secret, then rerun the workflow."
+      );
+    }
+
+    return {
+      url: parsedUrl.href.replace(/\/+$/, ""),
+      key
+    };
   }
 
   async function ensureAnonymousSession() {
@@ -537,9 +581,9 @@
         return true;
       }
 
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
+      const promptEvent = deferredInstallPrompt;
       deferredInstallPrompt = null;
+      await promptEvent.prompt();
       return true;
     }
 

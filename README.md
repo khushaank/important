@@ -1,57 +1,42 @@
 # Super Important Tasks
 
-This project keeps the exact visual design from the supplied `index.html` and replaces only the application logic.
+The visible design in `index.html` is unchanged. This version fixes GitHub Pages configuration injection, stale PWA configuration, favicon 404s, and accepts any valid HTTPS Supabase Project URL or custom domain.
 
-## 1. Create the database table
+## Supabase
 
-1. Open your Supabase project.
-2. Open **SQL Editor**.
-3. Run the complete contents of `supabase.sql`.
-4. Open **Authentication → Sign In / Providers** and enable **Anonymous Sign-Ins**.
+1. Open Supabase SQL Editor.
+2. Run `supabase.sql` once.
+3. Enable **Authentication → Sign In / Providers → Anonymous Sign-Ins**.
+4. Copy the **Project URL** and the frontend **Publishable key**. Never use a secret or `service_role` key.
 
-The app uses this intentionally uncommon table name:
+## GitHub repository secrets
 
-`super_important_tasks_kh_7f3a9c`
-
-Each browser receives an anonymous Supabase user. Row Level Security limits each user to their own tasks.
-
-## 2. Add GitHub repository secrets
-
-Open:
-
-**Repository → Settings → Secrets and variables → Actions → New repository secret**
-
-Add:
+Open **Repository → Settings → Secrets and variables → Actions → Repository secrets** and create exactly:
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 
-Use a Supabase **publishable key**. A legacy `anon` key also works if placed in the same secret. Never use a secret key or `service_role` key.
+For `SUPABASE_URL`, save only the URL value, such as:
 
-GitHub Actions writes these values into `config.js` during deployment. Because GitHub Pages runs in the browser, the deployed publishable key is still publicly inspectable. RLS is what protects the data.
+```text
+https://your-project-ref.supabase.co
+```
 
-## 3. Deploy
+For the key, save only the publishable-key value. Do not paste `SUPABASE_URL=` or `SUPABASE_PUBLISHABLE_KEY=`. This version cleans those prefixes and quotation marks if pasted accidentally, but raw values are preferable.
 
-1. Put all files in the root of the GitHub repository.
-2. Push to the `main` branch.
-3. Open **Settings → Pages**.
-4. Set **Source** to **GitHub Actions**.
-5. Open the Actions tab and wait for **Deploy Super Important Tasks** to complete.
+## Required GitHub Pages setting
 
-## Mobile installation
+Open **Repository → Settings → Pages** and set **Source** to **GitHub Actions**.
 
-The project is a PWA and includes a manifest, 192px/512px icons, and a service worker.
+Adding or changing a secret does not redeploy an already-published artifact. After adding the secrets:
 
-- Android/Chromium: after the browser determines the site is installable, the app asks on the first user interaction whether to install.
-- iPhone/iPad: browsers do not expose the same programmable install prompt. The app gives the user the instruction to use **Share → Add to Home Screen**.
-- The prompt is mobile-only and does not alter the page layout.
-- Installation requires the HTTPS GitHub Pages URL; it does not work from a local `file://` URL.
+1. Open **Actions**.
+2. Open **Deploy Super Important Tasks**.
+3. Select **Run workflow**, or push a new commit.
+4. Confirm both `build` and `deploy` are green.
 
-## Important behavior
+Then hard-refresh the site. On Android Chrome, close the installed tab/app once and reopen it if an older service worker was active.
 
-- Tasks are separated by calendar date.
-- Dates use the device's local timezone, avoiding UTC day drift.
-- Rapid date changes cannot render an older request over the newest date.
-- Delete requires confirmation.
-- Task text is limited to 200 characters in both HTML and SQL.
-- Supabase sessions persist in browser storage. Clearing site data creates a new anonymous identity, so the old tasks will no longer be visible from that browser.
+## PWA installation note
+
+Chromium logs a message saying the banner was not shown when `beforeinstallprompt.preventDefault()` is used. This is expected: the event is deliberately stored so the native install dialog can be opened after a user gesture. It is not a Supabase or deployment error.
