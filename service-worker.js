@@ -1,4 +1,4 @@
-const CACHE_NAME = "super-important-tasks-shell-v4";
+const CACHE_NAME = "super-important-tasks-shell-v5";
 const APP_SHELL = [
   "./",
   "./index.html",

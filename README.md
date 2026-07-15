@@ -1,30 +1,15 @@
 # Super Important Tasks
 
-Private, date-based tasks with cross-device sync, a local four-digit device lock, and Supabase persistence.
+Private, date-based tasks with a fixed `5514` screen lock, daily completion rings, overdue carryover, and Supabase persistence.
 
 ## Supabase
 
 1. Open Supabase SQL Editor.
 2. Run `supabase.sql` once.
 3. Enable **Authentication → Sign In / Providers → Anonymous Sign-Ins**.
-4. Enable **Authentication → Settings → Allow manual linking** so the laptop's existing anonymous identity can be linked to an email without losing its tasks.
-5. Set **Authentication → URL Configuration → Site URL** to the deployed app URL.
-6. Copy the **Project URL** and frontend **Publishable key**. Never use a secret or `service_role` key.
+4. Copy the **Project URL** and frontend **Publishable key**. Never use a secret or `service_role` key.
 
-`supabase.sql` locks all task rows to the owner of the earliest existing task. If the task table is empty, set the owner once in the SQL Editor:
-
-```sql
-insert into super_important_tasks_private.owner (singleton, user_id)
-values (true, 'YOUR_AUTH_USER_UUID');
-```
-
-The four-digit PIN is a local screen lock stored on that device. Supabase Auth and RLS are the actual data security layer.
-
-## AI task entry with MCP
-
-The repository includes a project-scoped Supabase MCP configuration. Set `SUPABASE_PROJECT_REF` in your local environment, reopen the MCP client, and approve the Supabase OAuth connection. The AI can then insert tasks into `public.super_important_tasks_kh_7f3a9c` for the owner.
-
-Keep manual tool approval enabled. Supabase recommends its hosted MCP server for development rather than production data; this configuration limits the connection to one project and the database/docs feature groups.
+The fixed PIN is intentionally only a simple screen lock. Task rows remain isolated to the browser's Supabase user by row-level security.
 
 ## GitHub repository secrets
 
