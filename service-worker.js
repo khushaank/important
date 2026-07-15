@@ -1,4 +1,4 @@
-const CACHE_NAME = "super-important-tasks-shell-v8";
+const CACHE_NAME = "super-important-tasks-shell-v9";
 const SUPABASE_SDK_URL = "https://unpkg.com/@supabase/supabase-js@2.110.5/dist/umd/supabase.js";
 const APP_SHELL = [
   "./",
