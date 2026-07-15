@@ -13,7 +13,7 @@ A private daily task list with server-verified PIN login, optional remembered se
 ## Supabase setup
 
 1. In **Authentication -> Users**, create one permanent email user and copy its UUID.
-2. Run [supabase.sql](./supabase.sql) in the SQL Editor. Rerun it after this update to enable Realtime and the daily progress view.
+2. Run [supabase.sql](./supabase.sql) in the SQL Editor. Rerun it after this update to enable MCP inserts, Realtime, and daily progress.
 3. Store the owner and a bcrypt hash of your four-digit PIN:
 
 ```sql
@@ -57,3 +57,5 @@ Set **Settings -> Pages -> Source** to **GitHub Actions**, then run **Deploy Sup
 ```powershell
 codex mcp add supabase --url "https://mcp.supabase.com/mcp?project_ref=YOUR_PROJECT_REF&features=database,docs"
 ```
+
+See [car.md](./car.md) for the exact project URL, safe task commands, Claude setup, and the analytics-sheet query.

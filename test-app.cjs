@@ -5,6 +5,8 @@ const html = fs.readFileSync("index.html", "utf8");
 const sql = fs.readFileSync("supabase.sql", "utf8");
 const loginFunction = fs.readFileSync("supabase/functions/pin-login/index.ts", "utf8");
 const serviceWorker = fs.readFileSync("service-worker.js", "utf8");
+const manifest = fs.readFileSync("manifest.webmanifest", "utf8");
+const car = fs.readFileSync("car.md", "utf8");
 const scriptStart = html.lastIndexOf("<script>") + 8;
 const scriptEnd = html.indexOf("</script>", scriptStart);
 
@@ -45,10 +47,18 @@ assert.match(sql, /super_important_tasks_private\.is_owner/);
 assert.match(sql, /alter publication supabase_realtime add table/);
 assert.match(sql, /super_important_tasks_daily_progress/);
 assert.match(sql, /security_invoker = true/);
+assert.match(sql, /function super_important_tasks_private\.fill_task_owner\(\)/);
+assert.match(sql, /create trigger super_important_tasks_fill_owner/);
+assert.match(sql, /if new\.user_id is null/);
 assert.match(loginFunction, /admin\.rpc\("verify_super_tasks_pin"/);
 assert.match(loginFunction, /admin\.auth\.admin\.generateLink/);
 assert.doesNotMatch(loginFunction, /5514/);
-assert.match(serviceWorker, /super-important-tasks-shell-v9/);
+assert.match(serviceWorker, /super-important-tasks-shell-v10/);
 assert.match(serviceWorker, /SUPABASE_SDK_URL/);
+assert.match(html, /\.\/logo\.png/);
+assert.doesNotMatch(html + manifest + serviceWorker, /favicon\.ico|icons\/icon-(192|512)\.png/);
+assert.match(manifest, /"src": "\.\/logo\.png"/);
+assert.match(car, /isbvdvexguygczzgrdpl/);
+assert.match(car, /Do not supply `user_id`/);
 
 console.log("App checks passed");

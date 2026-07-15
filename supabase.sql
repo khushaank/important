@@ -75,6 +75,40 @@ alter table super_important_tasks_private.login_config enable row level security
 alter table super_important_tasks_private.login_attempts enable row level security;
 revoke all on all tables in schema super_important_tasks_private from public, anon, authenticated;
 
+-- MCP database queries do not carry an app user's JWT, so auth.uid() is null.
+-- Fill an omitted owner from the one configured account without weakening RLS
+-- for browser/API requests.
+create or replace function super_important_tasks_private.fill_task_owner()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.user_id is null then
+    select user_id
+    into new.user_id
+    from super_important_tasks_private.login_config
+    where singleton;
+  end if;
+
+  if new.user_id is null then
+    raise exception 'Super Important Tasks owner is not configured';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function super_important_tasks_private.fill_task_owner() from public, anon, authenticated;
+
+drop trigger if exists super_important_tasks_fill_owner
+  on public.super_important_tasks_kh_7f3a9c;
+create trigger super_important_tasks_fill_owner
+  before insert on public.super_important_tasks_kh_7f3a9c
+  for each row
+  execute function super_important_tasks_private.fill_task_owner();
+
 create or replace function public.verify_super_tasks_pin(p_pin text, p_ip text)
 returns uuid
 language plpgsql

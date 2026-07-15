@@ -1,12 +1,10 @@
-const CACHE_NAME = "super-important-tasks-shell-v9";
+const CACHE_NAME = "super-important-tasks-shell-v10";
 const SUPABASE_SDK_URL = "https://unpkg.com/@supabase/supabase-js@2.110.5/dist/umd/supabase.js";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./favicon.ico",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./logo.png"
 ];
 
 self.addEventListener("install", (event) => {
