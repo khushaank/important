@@ -7,10 +7,25 @@ const loginFunction = fs.readFileSync("supabase/functions/pin-login/index.ts", "
 const serviceWorker = fs.readFileSync("service-worker.js", "utf8");
 const manifest = fs.readFileSync("manifest.webmanifest", "utf8");
 const car = fs.readFileSync("car.md", "utf8");
+const logo = fs.readFileSync("logo.png");
 const scriptStart = html.lastIndexOf("<script>") + 8;
 const scriptEnd = html.indexOf("</script>", scriptStart);
 
 assert.doesNotThrow(() => new Function(html.slice(scriptStart, scriptEnd)));
+const completionSource = html.match(/      function completionDay[\s\S]*?\n      }/)[0];
+const progressSource = html.match(/      function calculateProgress[\s\S]*?\n      }/)[0];
+const progressFor = new Function("toDateStr", "currentDate", `${completionSource}${progressSource}; return calculateProgress;`)(
+  (date) => date.toISOString().slice(0, 10),
+  "2026-07-18"
+);
+const lateTask = { completed: true, completed_on: "2026-07-19", task_date: "2026-07-18" };
+assert.deepEqual(progressFor([lateTask], "2026-07-18"), { completedCount: 0, taskCount: 1 });
+assert.deepEqual(progressFor([lateTask], "2026-07-19"), { completedCount: 1, taskCount: 1 });
+const swipeSource = html.match(/      function swipeDayDelta[\s\S]*?\n      }/)[0];
+const swipeDayDelta = new Function(`${swipeSource}; return swipeDayDelta;`)();
+assert.equal(swipeDayDelta({ x: 200, y: 100 }, { x: 100, y: 105 }), 1);
+assert.equal(swipeDayDelta({ x: 100, y: 100 }, { x: 200, y: 105 }), -1);
+assert.equal(swipeDayDelta({ x: 100, y: 100 }, { x: 110, y: 180 }), 0);
 assert.equal((html.match(/aria-label="PIN digit/g) || []).length, 4);
 assert.doesNotMatch(html, /5514|signInAnonymously|ensureAnonymousSession|pin\s*!==/);
 assert.match(html, /functions\.invoke\("pin-login"/);
@@ -35,6 +50,16 @@ assert.match(html, /id="progress-circle"/);
 assert.match(html, /id="progress-ring"/);
 assert.match(html, /id="progress-label">0 \/ 0 done/);
 assert.match(html, /function renderProgress\(tasks\)/);
+assert.match(html, /function completionDay\(task\)/);
+assert.match(html, /completed_on: completed \? toDateStr\(new Date\(\)\) : null/);
+assert.match(html, /Completed on/);
+assert.match(html, /addEventListener\("touchstart"/);
+assert.match(html, /addEventListener\("touchend"/);
+assert.match(html, /function swipeDayDelta\(start, end\)/);
+assert.match(html, /id="shortcuts-dialog"/);
+assert.match(html, /key === "arrowleft"/);
+assert.match(html, /key === "t"/);
+assert.match(html, /key === "n"/);
 assert.match(html, /document\.body\.classList\.remove\("session-loading"\)/);
 assert.doesNotMatch(html, /Still to do|Add a super important task|Hold a ring segment|>Synced</);
 assert.match(html, /pointerdown", reveal/);
@@ -58,16 +83,22 @@ assert.match(sql, /if new\.user_id is null/);
 assert.match(sql, /function public\.merge_super_important_task/);
 assert.match(sql, /where excluded\.updated_at > current_task\.updated_at/);
 assert.match(sql, /grant execute on function public\.merge_super_important_task/);
+assert.match(sql, /completed_on date/);
+assert.match(sql, /set_task_completion_day/);
+assert.match(sql, /completed_on = \(updated_at at time zone 'Asia\/Kolkata'\)::date/);
+assert.match(sql, /completed and completed_on = task_date/);
 assert.match(loginFunction, /admin\.rpc\("verify_super_tasks_pin"/);
 assert.match(loginFunction, /admin\.auth\.admin\.generateLink/);
 assert.doesNotMatch(loginFunction, /5514/);
-assert.match(serviceWorker, /super-important-tasks-shell-v11/);
+assert.match(serviceWorker, /super-important-tasks-shell-v12/);
 assert.match(serviceWorker, /SUPABASE_SDK_URL/);
 assert.match(serviceWorker, /cache\.add\(SUPABASE_SDK_URL\)/);
 assert.match(serviceWorker, /"\.\/config\.js"/);
 assert.match(html, /\.\/logo\.png/);
 assert.doesNotMatch(html + manifest + serviceWorker, /favicon\.ico|icons\/icon-(192|512)\.png/);
 assert.match(manifest, /"src": "\.\/logo\.png"/);
+assert.equal(logo.readUInt32BE(16), 1024);
+assert.equal(logo.readUInt32BE(20), 1024);
 assert.match(car, /isbvdvexguygczzgrdpl/);
 assert.match(car, /Do not supply `user_id`/);
 

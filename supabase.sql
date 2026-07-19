@@ -8,6 +8,7 @@ create table if not exists public.super_important_tasks_kh_7f3a9c (
   task_text text not null,
   task_date date not null,
   completed boolean not null default false,
+  completed_on date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
@@ -15,21 +16,50 @@ create table if not exists public.super_important_tasks_kh_7f3a9c (
     check (char_length(btrim(task_text)) between 1 and 200)
 );
 
+alter table public.super_important_tasks_kh_7f3a9c
+  add column if not exists completed_on date;
+
+update public.super_important_tasks_kh_7f3a9c
+set completed_on = (updated_at at time zone 'Asia/Kolkata')::date
+where completed and completed_on is null;
+
 create index if not exists super_important_tasks_kh_7f3a9c_user_date_created_idx
   on public.super_important_tasks_kh_7f3a9c (user_id, task_date, created_at, id);
+
+create index if not exists super_important_tasks_kh_7f3a9c_user_completed_on_idx
+  on public.super_important_tasks_kh_7f3a9c (user_id, completed_on)
+  where completed_on is not null;
 
 alter table public.super_important_tasks_kh_7f3a9c enable row level security;
 
 create or replace view public.super_important_tasks_daily_progress
 with (security_invoker = true)
 as
+with task_days as (
+  select
+    id,
+    user_id,
+    task_date,
+    completed and completed_on = task_date as completed
+  from public.super_important_tasks_kh_7f3a9c
+
+  union all
+
+  select
+    id,
+    user_id,
+    completed_on as task_date,
+    true as completed
+  from public.super_important_tasks_kh_7f3a9c
+  where completed and completed_on is distinct from task_date
+)
 select
   user_id,
   task_date,
   count(*)::integer as task_count,
   count(*) filter (where completed)::integer as completed_count,
   round(100.0 * count(*) filter (where completed) / nullif(count(*), 0))::integer as completion_percent
-from public.super_important_tasks_kh_7f3a9c
+from task_days
 group by user_id, task_date;
 
 grant select on public.super_important_tasks_daily_progress to authenticated;
@@ -74,6 +104,35 @@ create index if not exists super_important_tasks_login_attempts_ip_time_idx
 alter table super_important_tasks_private.login_config enable row level security;
 alter table super_important_tasks_private.login_attempts enable row level security;
 revoke all on all tables in schema super_important_tasks_private from public, anon, authenticated;
+
+create or replace function super_important_tasks_private.set_task_completion_day()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.completed then
+    new.completed_on := coalesce(
+      new.completed_on,
+      (now() at time zone 'Asia/Kolkata')::date
+    );
+  else
+    new.completed_on := null;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function super_important_tasks_private.set_task_completion_day()
+  from public, anon, authenticated;
+
+drop trigger if exists super_important_tasks_set_completion_day
+  on public.super_important_tasks_kh_7f3a9c;
+create trigger super_important_tasks_set_completion_day
+  before insert or update of completed, completed_on
+  on public.super_important_tasks_kh_7f3a9c
+  for each row
+  execute function super_important_tasks_private.set_task_completion_day();
 
 -- MCP database queries do not carry an app user's JWT, so auth.uid() is null.
 -- Fill an omitted owner from the one configured account without weakening RLS
@@ -227,13 +286,18 @@ create policy "kh_tasks_delete_own"
 -- Merge queued device changes without letting a late reconnect overwrite a
 -- newer edit. Different offline-created tasks have different UUIDs, so they
 -- are all inserted; edits to the same task use the newest updated_at value.
+drop function if exists public.merge_super_important_task(
+  uuid, text, boolean, date, timestamptz, timestamptz
+);
+
 create or replace function public.merge_super_important_task(
   p_id uuid,
   p_task_text text,
   p_completed boolean,
   p_task_date date,
   p_created_at timestamptz,
-  p_updated_at timestamptz
+  p_updated_at timestamptz,
+  p_completed_on date default null
 )
 returns void
 language sql
@@ -245,6 +309,7 @@ as $$
     user_id,
     task_text,
     completed,
+    completed_on,
     task_date,
     created_at,
     updated_at
@@ -254,6 +319,7 @@ as $$
     (select auth.uid()),
     btrim(p_task_text),
     p_completed,
+    p_completed_on,
     p_task_date,
     p_created_at,
     p_updated_at
@@ -262,16 +328,17 @@ as $$
   set
     task_text = excluded.task_text,
     completed = excluded.completed,
+    completed_on = excluded.completed_on,
     task_date = excluded.task_date,
     updated_at = excluded.updated_at
   where excluded.updated_at > current_task.updated_at;
 $$;
 
 revoke all on function public.merge_super_important_task(
-  uuid, text, boolean, date, timestamptz, timestamptz
+  uuid, text, boolean, date, timestamptz, timestamptz, date
 ) from public, anon;
 grant execute on function public.merge_super_important_task(
-  uuid, text, boolean, date, timestamptz, timestamptz
+  uuid, text, boolean, date, timestamptz, timestamptz, date
 ) to authenticated;
 
 comment on table public.super_important_tasks_kh_7f3a9c is

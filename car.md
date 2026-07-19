@@ -51,7 +51,7 @@ returning id, task_text, task_date, completed;
 List a date:
 
 ```sql
-select id, task_text, task_date, completed, created_at, updated_at
+select id, task_text, task_date, completed, completed_on, created_at, updated_at
 from public.super_important_tasks_kh_7f3a9c
 where task_date = date '2026-07-15'
 order by created_at, id;
@@ -63,7 +63,7 @@ Complete, edit, or move a task using its `id`:
 update public.super_important_tasks_kh_7f3a9c
 set completed = true, updated_at = now()
 where id = 'TASK_UUID'
-returning id, task_text, task_date, completed;
+returning id, task_text, task_date, completed, completed_on;
 
 update public.super_important_tasks_kh_7f3a9c
 set task_text = 'NEW TEXT', task_date = date '2026-07-16', updated_at = now()
@@ -94,24 +94,34 @@ logins as (
   where succeeded
   group by 1
 ),
-work as (
-  select task_date as day,
-         count(*)::integer as intended,
-         count(*) filter (where completed)::integer as completed,
-         round(100.0 * count(*) filter (where completed) / nullif(count(*), 0))::integer as completion_percent,
-         (max(updated_at) filter (where completed)) at time zone 'Asia/Kolkata' as last_completed_at
+planned as (
+  select task_date as day, count(*)::integer as intended
   from public.super_important_tasks_kh_7f3a9c
   group by task_date
+),
+work as (
+  select completed_on as day,
+         count(*)::integer as completed,
+         (max(updated_at)) at time zone 'Asia/Kolkata' as last_completed_at
+  from public.super_important_tasks_kh_7f3a9c
+  where completed_on is not null
+  group by completed_on
+),
+progress as (
+  select task_date as day, completion_percent
+  from public.super_important_tasks_daily_progress
 )
 select d.day,
        coalesce(l.login_count, 0) > 0 as signed_in,
        coalesce(l.login_count, 0) as login_count,
-       coalesce(w.intended, 0) as intended_tasks,
+       coalesce(p.intended, 0) as intended_tasks,
        coalesce(w.completed, 0) as completed_tasks,
-       coalesce(w.completion_percent, 0) as completion_percent,
+       coalesce(pr.completion_percent, 0) as completion_percent,
        w.last_completed_at
 from days d
 left join logins l using (day)
+left join planned p using (day)
 left join work w using (day)
+left join progress pr using (day)
 order by d.day;
 ```

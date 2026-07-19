@@ -9,13 +9,14 @@ A private daily task list with server-verified PIN login, optional remembered se
 - Leaving it off keeps the session only for the current browser session. Refresh still works; closing the session requires the PIN next time.
 - Tasks and edits are saved in this device's IndexedDB first. Offline changes queue locally and sync when the connection returns.
 - Offline additions from several devices are merged. If two devices edit the same task, the edit with the newest `updated_at` wins instead of the last device to reconnect.
+- Completion is stored separately from the planned date, so late work fills only the day it was actually completed.
 - Sync uses Supabase Realtime. It refreshes after a database change and does not poll every second.
 - Anonymous sign-in stays disabled. The website never stores or compares the PIN.
 
 ## Supabase setup
 
 1. In **Authentication -> Users**, create one permanent email user and copy its UUID.
-2. Run [supabase.sql](./supabase.sql) in the SQL Editor. Rerun it after this update to enable conflict-safe offline merges, MCP inserts, Realtime, and daily progress.
+2. Run [supabase.sql](./supabase.sql) in the SQL Editor. Rerun it after this update to add completion dates, conflict-safe offline merges, MCP inserts, Realtime, and accurate daily progress.
 3. Store the owner and a bcrypt hash of your four-digit PIN:
 
 ```sql
