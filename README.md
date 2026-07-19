@@ -1,4 +1,4 @@
-# Super Important Tasks
+# Supado
 
 A private daily task list with server-verified PIN login, optional remembered sessions, event-driven device sync, overdue carryover, and daily progress.
 
@@ -53,7 +53,7 @@ Create these repository Actions secrets:
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 
-Set **Settings -> Pages -> Source** to **GitHub Actions**, then run **Deploy Super Important Tasks**. Never put the PIN, database password, or service-role key in the repository.
+Set **Settings -> Pages -> Source** to **GitHub Actions**, then run **Deploy Supado**. Never put the PIN, database password, or service-role key in the repository.
 
 ## Optional Codex MCP
 

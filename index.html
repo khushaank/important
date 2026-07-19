@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Super Important Tasks</title>
+  <title>Supado</title>
   <link rel="icon" href="./logo.png" type="image/png">
   <style>
     * {
@@ -26,7 +26,6 @@
     }
 
     .brand {
-      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -38,24 +37,6 @@
       width: 32px;
       height: 32px;
       border-radius: 7px;
-    }
-
-    .shortcut-help {
-      position: absolute;
-      right: 0;
-      width: 44px;
-      height: 44px;
-      border: 0;
-      border-radius: 50%;
-      background: transparent;
-      color: #777;
-      font: 600 15px/1 inherit;
-      cursor: pointer;
-    }
-
-    .shortcut-help:hover {
-      background: #f5f5f5;
-      color: #111;
     }
 
     h1 {
@@ -389,8 +370,7 @@
       display: block;
     }
 
-    li.task .source-date,
-    li.task .completion-date {
+    li.task .source-date {
       display: block;
       margin-top: 3px;
       color: #c00;
@@ -556,7 +536,7 @@
   <section id="pin-lock" aria-labelledby="pin-title">
     <div class="pin-card">
       <img src="./logo.png" alt="">
-      <h2 id="pin-title">Super Important Tasks</h2>
+      <h2 id="pin-title">Supado</h2>
       <p>Enter your 4-digit PIN</p>
       <div class="pin-boxes" aria-label="Four digit PIN">
         <input inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="PIN digit 1">
@@ -576,9 +556,7 @@
 
     <header class="brand">
       <img src="./logo.png" alt="">
-      <h1>Super Important Tasks</h1>
-      <button id="shortcuts-btn" class="shortcut-help" type="button" aria-label="Keyboard shortcuts"
-        aria-keyshortcuts="?" title="Keyboard shortcuts (?)">?</button>
+      <h1>Supado</h1>
     </header>
 
     <div class="date-nav">
@@ -622,7 +600,7 @@
     <dl>
       <dt>&larr; / &rarr;</dt><dd>Previous / next day</dd>
       <dt>T</dt><dd>Today</dd>
-      <dt>N</dt><dd>New task</dd>
+      <dt>/</dt><dd>New task</dd>
       <dt>D</dt><dd>Choose date</dd>
       <dt>1&ndash;9</dt><dd>Toggle a visible task</dd>
       <dt>Tab / Space</dt><dd>Use every button and checkbox</dd>
@@ -663,7 +641,6 @@
       const pinError = document.getElementById("pin-error");
       const keepSignedIn = document.getElementById("keep-signed-in");
       const appShell = document.getElementById("app-shell");
-      const shortcutsButton = document.getElementById("shortcuts-btn");
       const shortcutsDialog = document.getElementById("shortcuts-dialog");
 
       let db = null;
@@ -900,7 +877,11 @@
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
           checkbox.checked = Boolean(task.completed);
-          checkbox.setAttribute("aria-label", `Mark ${task.task_text} complete`);
+          checkbox.setAttribute(
+            "aria-label",
+            task.completed ? `Undo completion for ${task.task_text}` : `Mark ${task.task_text} complete`
+          );
+          checkbox.title = task.completed ? "Undo completion" : "Mark complete";
           checkbox.addEventListener("change", async () => {
             checkbox.disabled = true;
             const requestedValue = checkbox.checked;
@@ -924,12 +905,11 @@
           span.textContent = task.task_text;
           copy.appendChild(span);
 
-          const completedOn = completionDay(task);
-          if (task.completed && completedOn) {
-            const completionDate = document.createElement("small");
-            completionDate.className = "completion-date";
-            completionDate.textContent = `Completed on ${formatTaskDate(completedOn)}`;
-            copy.appendChild(completionDate);
+          if (task.completed && task.task_date !== currentDate) {
+            const sourceDate = document.createElement("small");
+            sourceDate.className = "source-date";
+            sourceDate.textContent = `Made on ${formatTaskDate(task.task_date)}`;
+            copy.appendChild(sourceDate);
           } else if (task.task_date !== currentDate) {
             const sourceDate = document.createElement("small");
             sourceDate.className = "source-date";
@@ -1448,7 +1428,7 @@
         if (deferredInstallPrompt) {
           installOfferHandled = true;
           const accepted = window.confirm(
-            "Would you like to install Super Important Tasks on this phone?"
+            "Would you like to install Supado on this phone?"
           );
           if (!accepted) {
             localStorage.setItem(INSTALL_DISMISSED_KEY, "1");
@@ -1467,7 +1447,7 @@
         if (isIOS) {
           installOfferHandled = true;
           const showInstructions = window.confirm(
-            "Install Super Important Tasks? Tap OK, then use Share → Add to Home Screen."
+            "Install Supado? Tap OK, then use Share → Add to Home Screen."
           );
           if (!showInstructions) {
             localStorage.setItem(INSTALL_DISMISSED_KEY, "1");
@@ -1509,9 +1489,6 @@
 
       function wireEvents() {
         addButton.addEventListener("click", addTask);
-        shortcutsButton.addEventListener("click", () => {
-          if (!shortcutsDialog.open) shortcutsDialog.showModal();
-        });
 
         window.addEventListener("online", async () => {
           if (!db) {
@@ -1575,7 +1552,8 @@
             moveDate(key === "arrowleft" ? -1 : 1);
           } else if (key === "t") {
             changeDate(toDateStr(new Date()));
-          } else if (key === "n") {
+          } else if (key === "/" || key === "n") {
+            event.preventDefault();
             newTaskInput.focus();
           } else if (key === "d") {
             datePicker.focus();

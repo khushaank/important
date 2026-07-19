@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Super Important Tasks",
-  "short_name": "Important Tasks",
-  "description": "A minimal date-based list of super important tasks.",
+  "name": "Supado",
+  "short_name": "Supado",
+  "description": "A minimal date-based task list.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
