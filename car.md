@@ -4,7 +4,7 @@ Use this file when connecting Codex, Claude, or ChatGPT to this app.
 
 ## Connection
 
-- Site: `https://khushaank.github.io/important/`
+- Site: `https://supado.netlify.app/`
 - Supabase project: `isbvdvexguygczzgrdpl`
 - MCP URL: `https://mcp.supabase.com/mcp?project_ref=isbvdvexguygczzgrdpl&features=database,docs`
 - Task table: `public.super_important_tasks_kh_7f3a9c`
