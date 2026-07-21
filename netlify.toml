@@ -1,0 +1,12 @@
+[build]
+  command   = "node scripts/build-netlify.cjs"
+  publish   = "_site"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Redirect every unknown path back to index.html so the PWA handles routing
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
