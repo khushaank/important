@@ -1194,7 +1194,9 @@
           : [];
         const unique = (groups) => sortTasks(Array.from(new Map(groups.flat().map((task) => [task.id, task])).values()));
         return {
-          chartTasks: unique([dailyTasks, completedHere]),
+          // The ring must use the same work set as the lists. Otherwise overdue
+          // carryover appears as "To do" while the progress can still read 100%.
+          chartTasks: unique([dailyTasks, overdue, completedHere]),
           visible: unique([dailyTasks, overdue, completedHere])
         };
       }
@@ -1634,6 +1636,11 @@
         const lateTask = { completed: true, completed_on: "2026-07-19", task_date: "2026-07-18" };
         console.assert(calculateProgress([lateTask], "2026-07-18").completedCount === 0);
         console.assert(calculateProgress([lateTask], "2026-07-19").completedCount === 1);
+        const carryover = { id: "carryover", completed: false, task_date: toDateStr(new Date(0)), created_at: "" };
+        const completedToday = { id: "done", completed: true, completed_on: toDateStr(new Date()), task_date: toDateStr(new Date(0)), created_at: "" };
+        const todaySet = visibleTasks([carryover, completedToday], toDateStr(new Date()));
+        console.assert(todaySet.chartTasks.length === todaySet.visible.length);
+        console.assert(calculateProgress(todaySet.chartTasks).taskCount === 2);
         console.assert(swipeDayDelta({ x: 200, y: 100 }, { x: 100, y: 105 }) === 1);
         console.assert(swipeDayDelta({ x: 100, y: 100 }, { x: 200, y: 105 }) === -1);
         console.assert(pinInputs.length === 4);
